@@ -490,8 +490,8 @@ const Music=(()=>{
   let file=null,fileEl=null,fileGain=null,fileOn=false;
   fetch('musica.mp3',{method:'HEAD',cache:'no-store'}).then(r=>{file=r.ok&&/audio/.test(r.headers.get('content-type')||'');if(file&&playing&&!fileOn){playing=false;Music.start()}}).catch(()=>{file=false});
   function fileStart(){const c=ctxGet();
-    if(!fileEl){fileEl=new Audio('musica.mp3');fileEl.loop=true;fileEl.preload='auto';
-      try{const src=c.createMediaElementSource(fileEl);fileGain=c.createGain();fileGain.gain.value=0;src.connect(fileGain).connect(c.destination)}catch(e){fileGain=null;fileEl.volume=.4}}
+    // toca como áudio comum (assim funciona até com o iPhone no modo silencioso)
+    if(!fileEl){fileEl=new Audio('musica.mp3');fileEl.loop=true;fileEl.preload='auto';fileEl.volume=.7;fileEl.setAttribute('playsinline','')}
     if(fileGain){fileGain.gain.cancelScheduledValues(c.currentTime);fileGain.gain.setValueAtTime(fileGain.gain.value,c.currentTime);fileGain.gain.linearRampToValueAtTime(.4,c.currentTime+2)}
     fileEl.play().catch(()=>{});fileOn=true}
   function fileStop(){if(!fileEl)return;fileOn=false;const c=audioCtx;
