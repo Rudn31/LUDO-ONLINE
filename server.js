@@ -3,10 +3,11 @@
    Rodar:  node server.js   (porta = variável PORT ou 3000) */
 "use strict";
 const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto');
-const R = require('./public/rules.js');
+// Funciona com os arquivos do jogo dentro de /public OU soltos ao lado do server.js
+const PUB = fs.existsSync(path.join(__dirname, 'public', 'index.html')) ? path.join(__dirname, 'public') : __dirname;
+const R = require(path.join(PUB, 'rules.js'));
 const { COLORS } = R;
 const PORT = process.env.PORT || 3000;
-const PUB = path.join(__dirname, 'public');
 
 const rooms = new Map();      // code -> room
 const lobby = new Map();      // res  -> {id,name}
