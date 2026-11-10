@@ -459,7 +459,10 @@ function ctxGet(){if(!audioCtx){try{audioCtx=new (window.AudioContext||window.we
 function audio(){ctxGet();if(musicOn)Music.start()}
 
 /* ===== MÚSICA DE FUNDO (gerada pelo próprio jogo, sem arquivos) ===== */
-let musicOn=store.get('ludo_music')!=='0';
+const TRACKS={suspense:{src:'suspense.mp3',name:'Suspense',ico:'🎻'},alegre:{src:'musica.mp3',name:'Alegre',ico:'🎵'}};
+const MODES=['suspense','alegre','off'];
+let musicMode=store.get('ludo_mode');if(!MODES.includes(musicMode))musicMode=store.get('ludo_music')==='0'?'off':'suspense';
+let musicOn=musicMode!=='off';
 const Music=(()=>{
   let master=null,echo=null,timer=null,playing=false,nextT=0,step=0;
   const E=60/76/2;                                   // colcheia a 76 bpm
@@ -486,18 +489,17 @@ const Music=(()=>{
     if(b%2===1&&Math.random()<.35)tone(hz(ch[Math.floor(Math.random()*4)]+12),t,.7,'triangle',.012,.01,true)}
   function sched(){if(!playing||!audioCtx)return;const c=audioCtx;if(nextT<c.currentTime)nextT=c.currentTime+.05;
     while(nextT<c.currentTime+.6){play(step,nextT);step++;nextT+=E}}
-  // Se existir o arquivo "musica.mp3" ao lado do jogo, ele é tocado em vez da música gerada
-  let file=null,fileEl=null,fileGain=null,fileOn=false;
-  fetch('musica.mp3',{method:'HEAD',cache:'no-store'}).then(r=>{file=r.ok&&/audio/.test(r.headers.get('content-type')||'');if(file&&playing&&!fileOn){playing=false;Music.start()}}).catch(()=>{file=false});
-  function fileStart(){const c=ctxGet();
+  // Toca suspense.mp3 ou musica.mp3 (botão 🎵); se o arquivo faltar, usa a música gerada
+  let file=true,fileEl=null,fileOn=false,curSrc='';
+  function fileStart(){ctxGet();const src=(TRACKS[musicMode]||TRACKS.suspense).src;
     // toca como áudio comum (assim funciona até com o iPhone no modo silencioso)
-    if(!fileEl){fileEl=new Audio('musica.mp3');fileEl.loop=true;fileEl.preload='auto';fileEl.volume=.7;fileEl.setAttribute('playsinline','')}
-    if(fileGain){fileGain.gain.cancelScheduledValues(c.currentTime);fileGain.gain.setValueAtTime(fileGain.gain.value,c.currentTime);fileGain.gain.linearRampToValueAtTime(.4,c.currentTime+2)}
+    if(!fileEl){fileEl=new Audio();fileEl.loop=true;fileEl.preload='auto';fileEl.volume=.7;fileEl.setAttribute('playsinline','');
+      fileEl.onerror=()=>{file=false;fileOn=false;if(musicOn)Music.start()}}   // sem arquivo: usa a música gerada
+    if(curSrc!==src){curSrc=src;fileEl.src=src;fileEl.currentTime=0}
     fileEl.play().catch(()=>{});fileOn=true}
-  function fileStop(){if(!fileEl)return;fileOn=false;const c=audioCtx;
-    if(fileGain&&c){fileGain.gain.cancelScheduledValues(c.currentTime);fileGain.gain.setValueAtTime(fileGain.gain.value,c.currentTime);fileGain.gain.linearRampToValueAtTime(0,c.currentTime+.6);setTimeout(()=>{if(!fileOn)fileEl.pause()},700)}
-    else fileEl.pause()}
+  function fileStop(){if(!fileEl)return;fileOn=false;fileEl.pause()}
   return{
+    change(){if(fileOn){fileOn=false;fileStart()}},
     start(){if(file&&!fileOn){if(playing){playing=false;if(master&&audioCtx){master.gain.cancelScheduledValues(audioCtx.currentTime);master.gain.setValueAtTime(0,audioCtx.currentTime)}clearInterval(timer)}fileStart();return}
       if(file)return;
       if(playing||!init())return;playing=true;const c=audioCtx;nextT=c.currentTime+.1;
@@ -507,10 +509,13 @@ const Music=(()=>{
       master.gain.cancelScheduledValues(c.currentTime);master.gain.setValueAtTime(master.gain.value,c.currentTime);master.gain.linearRampToValueAtTime(0,c.currentTime+.6);
       setTimeout(()=>{if(!playing)clearInterval(timer)},700)}};
 })();
-function setMusic(v){musicOn=v;store.set('ludo_music',v?'1':'0');$('musBtn').style.opacity=v?1:.45;$('musBtn').title=v?'Música: ligada':'Música: desligada';
-  if(v){ctxGet();Music.start()}else Music.stop()}
-$('musBtn').onclick=e=>{e.stopPropagation();setMusic(!musicOn);toast(musicOn?'🎵 Música ligada':'Música desligada')};
-$('musBtn').style.opacity=musicOn?1:.45;
+function showMusicBtn(){const b=$('musBtn'),t=TRACKS[musicMode];b.textContent=t?t.ico:'🎵';b.style.opacity=t?1:.45;
+  b.title='Música: '+(t?t.name:'desligada')+' (toque para trocar)'}
+function setMusicMode(m){musicMode=m;musicOn=m!=='off';store.set('ludo_mode',m);showMusicBtn();
+  if(musicOn){ctxGet();Music.change();Music.start()}else Music.stop()}
+$('musBtn').onclick=e=>{e.stopPropagation();const m=MODES[(MODES.indexOf(musicMode)+1)%MODES.length];setMusicMode(m);
+  toast(m==='off'?'Música desligada':'🎵 Música: '+TRACKS[m].name)};
+showMusicBtn();
 // navegadores só liberam som depois do primeiro toque/clique
 ['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{if(musicOn)audio()},{passive:true}));
 document.addEventListener('visibilitychange',()=>{if(!audioCtx)return;if(document.hidden)audioCtx.suspend().catch(()=>{});else audioCtx.resume().catch(()=>{})});
