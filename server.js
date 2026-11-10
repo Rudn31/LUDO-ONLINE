@@ -133,7 +133,7 @@ function lobbyBroadcast() {
 }
 
 /* ---------- HTTP ---------- */
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' };
+const MIME = { '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' };
 function readBody(req) {
   return new Promise((ok, no) => {
     let b = ''; req.on('data', d => { b += d; if (b.length > 10000) { no(new Error('grande')); req.destroy() } });
@@ -188,13 +188,27 @@ const server = http.createServer(async (req, res) => {
       return json(res, err ? 400 : 200, err ? { err } : { ok: true });
     }
     if (req.method === 'GET' && u.pathname === '/health') return json(res, 200, { ok: true, rooms: rooms.size, lobby: lobby.size });
-    if (req.method === 'GET') {
+    if (req.method === 'GET' || req.method === 'HEAD') {
       let p = u.pathname === '/' ? '/index.html' : decodeURIComponent(u.pathname);
       const f = path.normalize(path.join(PUB, p));
       if (!f.startsWith(PUB)) { res.writeHead(403); return res.end() }
-      return fs.readFile(f, (e, data) => {
-        if (e) { res.writeHead(404); return res.end('não encontrado') }
-        res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-cache' }); res.end(data);
+      return fs.stat(f, (e, st) => {
+        if (e || !st.isFile()) { res.writeHead(404); return res.end('não encontrado') }
+        const type = MIME[path.extname(f).toLowerCase()] || 'application/octet-stream';
+        const isAudio = type.startsWith('audio/');
+        const head = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': isAudio ? 'public, max-age=86400' : 'no-cache' };
+        const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
+        if (m) {                                   // pedaços do arquivo (o iPhone exige isso para tocar áudio)
+          let start = m[1] === '' ? st.size - Number(m[2]) : Number(m[1]);
+          let end = m[1] !== '' && m[2] !== '' ? Number(m[2]) : st.size - 1;
+          if (start < 0) start = 0; if (end >= st.size) end = st.size - 1;
+          if (start > end) { res.writeHead(416, { 'Content-Range': `bytes */${st.size}` }); return res.end() }
+          res.writeHead(206, Object.assign(head, { 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 }));
+          return fs.createReadStream(f, { start, end }).pipe(res);
+        }
+        res.writeHead(200, Object.assign(head, { 'Content-Length': st.size }));
+        if (req.method === 'HEAD') return res.end();
+        fs.createReadStream(f).pipe(res);
       });
     }
     res.writeHead(405); res.end();
