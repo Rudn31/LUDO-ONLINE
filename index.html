@@ -44,7 +44,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#2a1f16;color:#fff;
 .lbl{font-size:.52px;font-weight:700;fill:#3a2412;paint-order:stroke;stroke:rgba(255,235,210,.7);stroke-width:.08px}
 .lbl.turn{fill:#000;font-size:.6px}
 /* overlays */
-.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,10,6,.72);z-index:10;padding:14px;overflow:auto}
+.ov{position:absolute;inset:0;top:calc(52px + env(safe-area-inset-top));display:flex;align-items:center;justify-content:center;background:rgba(15,10,6,.72);z-index:10;padding:14px;overflow:auto}
 .card{background:#fbf6ee;color:#2a1d12;border-radius:18px;padding:20px;width:min(440px,100%);box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:100%;overflow:auto}
 .card h1{margin:0 0 4px;font-size:34px;letter-spacing:1px;text-align:center}
 .card h2{margin:0 0 12px;font-size:20px;text-align:center}
@@ -93,7 +93,8 @@ label.sm{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:
     <button class="ib" id="menuBtn" title="Menu">☰</button>
     <span id="code"></span>
     <div id="status">Ludo</div>
-    <button class="ib" id="sndBtn" title="Som">🔊</button>
+    <button class="ib" id="musBtn" title="Música">🎵</button>
+    <button class="ib" id="sndBtn" title="Efeitos sonoros">🔊</button>
     <button class="ib" id="fsBtn" title="Tela cheia">⛶</button>
   </div>
   <div id="menu">
@@ -453,7 +454,53 @@ $('fsBtn').onclick=()=>{const d=document,el=d.documentElement;
   if(!req)return fail();try{const p=req.call(el);if(p&&p.catch)p.catch(fail)}catch(e){fail()}};
 let tt=null;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600)}
 /* ================= SOM ================= */
-function audio(){if(!sound||audioCtx)return;try{audioCtx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+function ctxGet(){if(!audioCtx){try{audioCtx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+  if(audioCtx&&audioCtx.state==='suspended'&&!document.hidden)audioCtx.resume().catch(()=>{});return audioCtx}
+function audio(){ctxGet();if(musicOn)Music.start()}
+
+/* ===== MÚSICA DE FUNDO (gerada pelo próprio jogo, sem arquivos) ===== */
+let musicOn=store.get('ludo_music')!=='0';
+const Music=(()=>{
+  let master=null,echo=null,timer=null,playing=false,nextT=0,step=0;
+  const E=60/76/2;                                   // colcheia a 76 bpm
+  const hz=n=>440*Math.pow(2,(n-69)/12);
+  // Dó maj7 – Lá m7 – Fá maj7 – Sol6 (progressão suave)
+  const CH=[[60,64,67,71],[57,60,64,67],[53,57,60,64],[55,59,62,64]];
+  const BASS=[36,33,29,31];
+  const MEL=[[76,79,74,72],[72,76,79,81],[72,69,72,76],[74,71,79,74]];
+  const PAT=[1,0,0,1,0,1,0,0];                       // em que colcheias toca a melodia
+  function init(){const c=ctxGet();if(!c||master)return!!c;
+    master=c.createGain();master.gain.value=0;
+    const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;
+    echo=c.createDelay(1);echo.delayTime.value=E*3;const fb=c.createGain();fb.gain.value=.28;const ew=c.createGain();ew.gain.value=.35;
+    echo.connect(fb).connect(echo);echo.connect(ew).connect(lp);
+    master.connect(lp).connect(c.destination);return true}
+  function tone(f,t,d,type,vol,att,toEcho){const c=audioCtx,o=c.createOscillator(),g=c.createGain();
+    o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+att);
+    g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(master);if(toEcho)g.connect(echo);o.start(t);o.stop(t+d+.05)}
+  function play(st,t){const bar=Math.floor(st/8)%4,b=st%8,ch=CH[bar];
+    if(b===0){for(const n of ch){tone(hz(n),t,E*8+.6,'sine',.022,.9);tone(hz(n)*1.003,t,E*8+.6,'triangle',.010,1.1)}
+      tone(hz(BASS[bar]),t,E*3.5,'sine',.07,.04)}
+    if(b===4)tone(hz(BASS[bar]+7),t,E*3,'sine',.05,.04);
+    if(PAT[b]){const m=MEL[(Math.floor(st/32)+bar)%4][(b>>1)%4];tone(hz(m),t,1.1,'sine',.035,.02,true);tone(hz(m*1+12),t,.5,'sine',.006,.02)}
+    if(b%2===1&&Math.random()<.35)tone(hz(ch[Math.floor(Math.random()*4)]+12),t,.7,'triangle',.012,.01,true)}
+  function sched(){if(!playing||!audioCtx)return;const c=audioCtx;if(nextT<c.currentTime)nextT=c.currentTime+.05;
+    while(nextT<c.currentTime+.6){play(step,nextT);step++;nextT+=E}}
+  return{
+    start(){if(playing||!init())return;playing=true;const c=audioCtx;nextT=c.currentTime+.1;
+      master.gain.cancelScheduledValues(c.currentTime);master.gain.setValueAtTime(master.gain.value,c.currentTime);master.gain.linearRampToValueAtTime(.55,c.currentTime+2.5);
+      clearInterval(timer);timer=setInterval(sched,120);sched()},
+    stop(){if(!playing)return;playing=false;const c=audioCtx;
+      master.gain.cancelScheduledValues(c.currentTime);master.gain.setValueAtTime(master.gain.value,c.currentTime);master.gain.linearRampToValueAtTime(0,c.currentTime+.6);
+      setTimeout(()=>{if(!playing)clearInterval(timer)},700)}};
+})();
+function setMusic(v){musicOn=v;store.set('ludo_music',v?'1':'0');$('musBtn').style.opacity=v?1:.45;$('musBtn').title=v?'Música: ligada':'Música: desligada';
+  if(v){ctxGet();Music.start()}else Music.stop()}
+$('musBtn').onclick=e=>{e.stopPropagation();setMusic(!musicOn);toast(musicOn?'🎵 Música ligada':'Música desligada')};
+$('musBtn').style.opacity=musicOn?1:.45;
+// navegadores só liberam som depois do primeiro toque/clique
+['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>{if(musicOn)audio()},{passive:true}));
+document.addEventListener('visibilitychange',()=>{if(!audioCtx)return;if(document.hidden)audioCtx.suspend().catch(()=>{});else audioCtx.resume().catch(()=>{})});
 function beep(f,d,type){if(!sound||!audioCtx)return;try{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type||'triangle';o.frequency.value=f;
   g.gain.setValueAtTime(.12,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+d);o.connect(g).connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+d)}catch(e){}}
 function chime(){[660,880,1100].forEach((f,i)=>setTimeout(()=>beep(f,.18),i*110))}
