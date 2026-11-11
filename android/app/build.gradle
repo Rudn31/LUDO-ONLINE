@@ -1,0 +1,30 @@
+plugins { id 'com.android.application' }
+
+def build = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+
+android {
+    namespace 'com.rudn31.ludo'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.rudn31.ludo'
+        minSdk 24
+        targetSdk 34
+        versionCode build
+        versionName "1.${build}"
+    }
+    // Chave fixa: assim cada APK novo instala POR CIMA do anterior, sem desinstalar
+    signingConfigs {
+        release {
+            storeFile file('ludo.jks')
+            storePassword 'ludo-online'
+            keyAlias 'ludo'
+            keyPassword 'ludo-online'
+        }
+    }
+    buildTypes {
+        release { minifyEnabled false; signingConfig signingConfigs.release }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+
+dependencies { implementation 'androidx.webkit:webkit:1.11.0' }

@@ -33,6 +33,19 @@ function view(room, id) {
   for (const c of COLORS) { const s = g.seats[c]; g.seats[c] = { t: s.t, name: s.name || '', on: s.id ? on.has(s.id) : false, me: !!s.id && s.id === id } }
   return { g, host: room.hostId === id, code: room.code, hostName: nameOf(room, room.hostId), spectators: room.clients.size };
 }
+function sendChat(room, c, name, e) {
+  room.chatId = (room.chatId || 0) + 1;
+  for (const res of room.clients.keys()) send(res, { chat: { id: room.chatId, c: c || null, name: name || '', e } });
+}
+const pick = a => a[Math.floor(Math.random() * a.length)];
+function botReact(room) {                     // os bots também reagem com emojis
+  const g = room.g, mv = g.mv; if (!mv) return;
+  const bot = c => g.seats[c] && g.seats[c].t === 'c';
+  if (g.phase === 'over' && bot(g.winner)) return setTimeout(() => sendChat(room, g.winner, '', 16), 600);
+  if (!mv.cap || !mv.cap.length) return;
+  if (bot(mv.c) && Math.random() < .7) setTimeout(() => sendChat(room, mv.c, '', pick([1, 2, 14])), 700);
+  const v = mv.cap[0][0]; if (bot(v) && Math.random() < .7) setTimeout(() => sendChat(room, v, '', pick([5, 6, 7])), 1300);
+}
 function broadcast(room) {
   room.g.v++;
   for (const [res, c] of room.clients) send(res, view(room, c.id));
@@ -65,7 +78,7 @@ function act(room, a) {
   const g = room.g; if (g.phase !== 'play') return false;
   if (a.t === 'roll' && g.st === 'roll') R.doRoll(g);
   else if (a.t === 'move' && g.st === 'move' && g.movable.includes(a.p)) {
-    R.doMove(g, a.p); room.animUntil = Date.now() + g.mv.path.length * 140 + (g.mv.cap.length ? 450 : 0) + 150;
+    R.doMove(g, a.p); botReact(room); room.animUntil = Date.now() + g.mv.path.length * 140 + (g.mv.cap.length ? 450 : 0) + 150;
   } else return false;
   broadcast(room); return true;
 }
@@ -100,6 +113,12 @@ function handleAct(room, id, name, a) {
     R.startGame(g); room.animUntil = 0; broadcast(room); return null;
   }
   if (a.t === 'again') { if (!isHost) return 'só o anfitrião'; if (g.phase !== 'over') return 'inválido'; g.phase = 'lobby'; g.pcs = R.fresh(); g.mv = null; g.dice = 0; broadcast(room); return null }
+  if (a.t === 'emo') {
+    const e = Number(a.e); if (!Number.isInteger(e) || e < 0 || e >= R.EMOJIS.length) return 'emoji inválido';
+    room.lastEmo = room.lastEmo || new Map(); const now = Date.now();
+    if (now - (room.lastEmo.get(id) || 0) < 1200) return 'calma! espere um pouco';
+    room.lastEmo.set(id, now); sendChat(room, seatOf(room, id), name, e); return null;
+  }
   if (a.t === 'roll' || a.t === 'move') {
     if (g.phase !== 'play' || g.seats[g.turn].id !== id) return 'não é sua vez';
     return act(room, { t: a.t, p: Number(a.p) }) ? null : 'jogada inválida';
@@ -144,6 +163,12 @@ const json = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'applic
 
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x'); const q = u.searchParams;
+  if (u.pathname.startsWith('/api/')) {          // libera o aplicativo Android a falar com o servidor
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Max-Age': '86400' }); return res.end() }
+  }
   try {
     if (req.method === 'GET' && u.pathname === '/api/lobby') {
       sse(res); const me = { id: cleanId(q.get('id')), name: clean(q.get('name')) };
@@ -190,6 +215,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && u.pathname === '/health') return json(res, 200, { ok: true, rooms: rooms.size, lobby: lobby.size });
     if (req.method === 'GET' || req.method === 'HEAD') {
       let p = u.pathname === '/' ? '/index.html' : decodeURIComponent(u.pathname);
+      if (p.split('/').some(x => x.startsWith('.')) || /^\/(android|node_modules)\//.test(p) || /\.(jks|py|md)$/.test(p)) { res.writeHead(404); return res.end('não encontrado') }
       const f = path.normalize(path.join(PUB, p));
       if (!f.startsWith(PUB)) { res.writeHead(403); return res.end() }
       return fs.stat(f, (e, st) => {

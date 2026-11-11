@@ -94,6 +94,8 @@
     }
     return best;
   }
-  const R = { COLORS, PT, START, SAFE, HOME, TRACK, LANE, absIdx, cellRC, fresh, seatName, newGame, startGame, movableOf, doRoll, doMove, nextTurn, cpuPick };
+  // Chat só com emojis: os jogadores mandam o NÚMERO do emoji desta lista
+  const EMOJIS = ['😀', '😂', '😎', '😍', '😮', '😢', '😭', '😡', '🤔', '😴', '👍', '👎', '👏', '🙏', '🔥', '🎲', '🏆', '💀'];
+  const R = { EMOJIS, COLORS, PT, START, SAFE, HOME, TRACK, LANE, absIdx, cellRC, fresh, seatName, newGame, startGame, movableOf, doRoll, doMove, nextTurn, cpuPick };
   if (typeof module !== 'undefined' && module.exports) module.exports = R; else root.LudoRules = R;
 })(this);

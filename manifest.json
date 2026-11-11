@@ -1,1 +1,1 @@
-{"name":"Ludo Online","short_name":"Ludo","start_url":"/","display":"fullscreen","orientation":"any","background_color":"#2a1f16","theme_color":"#2a1f16","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml"}]}
+{"name":"Ludo Online","short_name":"Ludo","start_url":"./","display":"fullscreen","orientation":"any","background_color":"#2a1f16","theme_color":"#2a1f16","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml"}]}

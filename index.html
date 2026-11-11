@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#2a1f16">
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="manifest.json">
 <title>Ludo Online</title>
 <style>
 :root{--blue:#1f6fb8;--green:#68a92c;--red:#e01b2c;--yellow:#f3cf00}
@@ -77,6 +77,14 @@ label.sm{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:
 .oli button{border:0;border-radius:8px;background:#2a1d12;color:#fff;font-weight:700;padding:7px 12px;cursor:pointer;font-size:13px}
 .oli button:disabled{opacity:.4}
 .empty{font-size:13px;color:#8a7258;text-align:center;padding:8px}
+#emoBtn{font-size:20px}
+#emoPal{position:absolute;top:52px;right:8px;z-index:25;background:#fbf6ee;border-radius:14px;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.5);display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+#emoPal button{font-size:26px;width:46px;height:46px;border:0;border-radius:10px;background:transparent;cursor:pointer}
+#emoPal button:active{background:#efe3d3}
+.bub{position:absolute;transform:translate(-50%,-50%) scale(.2);font-size:min(11vw,64px);line-height:1;pointer-events:none;z-index:12;
+  animation:bub 2.6s ease-out forwards;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+.bub small{display:block;font-size:12px;font-weight:700;text-align:center;color:#fff;background:rgba(0,0,0,.55);border-radius:8px;padding:1px 6px;margin-top:2px;white-space:nowrap}
+@keyframes bub{0%{transform:translate(-50%,-50%) scale(.2);opacity:0}12%{transform:translate(-50%,-60%) scale(1.15);opacity:1}20%{transform:translate(-50%,-60%) scale(1)}80%{opacity:1}100%{transform:translate(-50%,-95%) scale(1);opacity:0}}
 #invite{position:absolute;top:56px;left:50%;transform:translateX(-50%);z-index:30;background:#fbf6ee;color:#2a1d12;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.5);display:flex;gap:10px;align-items:center;width:min(420px,94%);font-size:14px}
 #invite button{border:0;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer}
 #toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:9px 16px;border-radius:999px;font-size:14px;z-index:20;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center}
@@ -93,6 +101,7 @@ label.sm{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:
     <button class="ib" id="menuBtn" title="Menu">☰</button>
     <span id="code"></span>
     <div id="status">Ludo</div>
+    <button class="ib hidden" id="emoBtn" title="Mandar emoji">😀</button>
     <button class="ib" id="musBtn" title="Música">🎵</button>
     <button class="ib" id="sndBtn" title="Efeitos sonoros">🔊</button>
     <button class="ib" id="fsBtn" title="Tela cheia">⛶</button>
@@ -107,11 +116,14 @@ label.sm{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:
   </div>
   <div class="ov" id="ov"></div>
   <div id="toast"></div>
+  <div id="emoPal" class="hidden"></div>
   <div id="invite" class="hidden"><span id="invTx" style="flex:1"></span><button id="invYes" style="background:#2a1d12;color:#fff">Entrar</button><button id="invNo" style="background:#e9dccb">✕</button></div>
 </div>
-<script src="/rules.js"></script>
+<script src="rules.js"></script>
 <script>
 "use strict";
+const API=location.hostname==='appassets.androidplatform.net'?'https://ludo-online-xvys.onrender.com':'';
+const IS_APP=!!API;
 const {COLORS,PT,START,SAFE,HOME,TRACK,LANE,absIdx,cellRC,fresh,seatName}=LudoRules;
 const HEX={blue:'#1f6fb8',green:'#68a92c',red:'#e01b2c',yellow:'#f3cf00'};
 const BC={blue:[2.7,2.7],green:[2.7,12.3],red:[12.3,12.3],yellow:[12.3,2.7]};
@@ -204,12 +216,12 @@ function schedule(){
 }
 function act(a){const g=authG;if(!g||g.phase!=='play')return;
   if(a.t==='roll'&&g.st==='roll')LudoRules.doRoll(g);
-  else if(a.t==='move'&&g.st==='move'&&g.movable.includes(a.p)){LudoRules.doMove(g,a.p);animUntil=Date.now()+g.mv.path.length*140+(g.mv.cap.length?450:0)+150}
+  else if(a.t==='move'&&g.st==='move'&&g.movable.includes(a.p)){LudoRules.doMove(g,a.p);localBotReact(g);animUntil=Date.now()+g.mv.path.length*140+(g.mv.cap.length?450:0)+150}
   else return;commit()}
 
 /* ================= SERVIDOR ================= */
 async function api(path,body){
-  try{const r=await fetch('/api/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({code:roomCode,id:myId,name:myName},body))});
+  try{const r=await fetch(API+'/api/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({code:roomCode,id:myId,name:myName},body))});
     const j=await r.json().catch(()=>({}));if(!r.ok&&j.err)toast(j.err);return j}
   catch(e){toast('Sem conexão com o servidor');return {err:'net'}}
 }
@@ -260,6 +272,7 @@ function renderUI(){
   const g=G;
   $('code').textContent=mode==='online'&&roomCode?'SALA '+roomCode:'';
   $('mCopy').classList.toggle('hidden',mode!=='online');
+  $('emoBtn').classList.toggle('hidden',!(G&&(G.phase==='play'||G.phase==='lobby'&&mode==='online')));
   for(const c of COLORS){const l=$('lbl-'+c),b=$('base-'+c);let t='';
     if(g&&g.seats[c]){const s=g.seats[c];const inGame=g.act&&g.act.includes(c)&&g.phase!=='lobby';
       if(g.phase==='lobby')t=s.t==='h'?(g.mode==='online'?(s.name||'…'):PT[c]):s.t==='c'?'CPU 🤖':s.t==='o'?'livre':'';
@@ -298,7 +311,8 @@ function renderOverlay(){
   if(key==='home'){
     html=`<div class="card">${dots}<h1>LUDO</h1><p style="text-align:center">Até 4 jogadores • celular e PC</p>
       <label class="sm">Seu nome</label><input class="tx" id="nameIn" maxlength="14" placeholder="Digite seu nome">
-      <button class="btn" id="bLocal">🎲 Jogar neste aparelho</button>
+      <button class="btn" id="bBots" style="background:#68a92c">🤖 Jogar contra o computador</button>
+      <button class="btn" id="bLocal">🎲 Jogar neste aparelho (vários jogadores)</button>
       <button class="btn" id="bCreate">🌐 Criar sala online</button>
       <button class="btn" id="bRooms" style="background:#1f6fb8">🔎 Ver salas online abertas</button>
       <label class="sm">Entrar com código</label>
@@ -335,7 +349,7 @@ function renderOverlay(){
   ov.innerHTML=html;
   if(key==='home'){$('nameIn').value=myName;$('codeIn').value=urlCode;
     $('nameIn').oninput=e=>{myName=clean(e.target.value);store.set('ludo_name',myName);reconnectLobbySoon()};
-    $('bLocal').onclick=startLocal;$('bCreate').onclick=createRoom;$('bJoin').onclick=()=>joinRoom($('codeIn').value);
+    $('bLocal').onclick=startLocal;$('bBots').onclick=startBots;$('bCreate').onclick=createRoom;$('bJoin').onclick=()=>joinRoom($('codeIn').value);
     $('codeIn').onkeydown=e=>{if(e.key==='Enter')joinRoom($('codeIn').value)};$('bRooms').onclick=()=>{view='rooms';renderUI()}}
   if(key==='rooms'){$('bRoomsBack').onclick=()=>{view='home';renderUI()};$('bCreate2').onclick=createRoom}
   if(key.startsWith('lobby')){
@@ -375,7 +389,7 @@ function renderLists(){
 let lobbyRT=null;
 function connectLobby(){
   if(les)les.close();lobbyOK=false;
-  les=new EventSource(`/api/lobby?id=${encodeURIComponent(myId)}&name=${encodeURIComponent(myName||'Jogador')}`);
+  les=new EventSource(`${API}/api/lobby?id=${encodeURIComponent(myId)}&name=${encodeURIComponent(myName||'Jogador')}`);
   les.onmessage=e=>{try{lobbyData=JSON.parse(e.data)}catch(_){return}lobbyOK=true;renderLists();checkBanner()};
   les.onerror=()=>{lobbyOK=false;renderLists()};
 }
@@ -396,6 +410,10 @@ $('invNo').onclick=()=>{dismissed.add($('invite').dataset.code);hideBanner()};
 /* ================= MODOS ================= */
 function needName(){if(myName)return false;const ni=$('nameIn');toast('Digite seu nome primeiro');if(ni)ni.focus();else{view='home';renderUI()}return true}
 function startLocal(){audio();mode='local';authG=LudoRules.newGame('local');G=null;hideBanner();commit()}
+// Você (Azul) contra 3 bots: funciona sem internet
+function startBots(){audio();mode='local';authG=LudoRules.newGame('local');
+  authG.seats={blue:{t:'h'},green:{t:'c'},red:{t:'c'},yellow:{t:'c'}};G=null;hideBanner();
+  LudoRules.startGame(authG);animUntil=0;commit()}
 function setSeat(c,v){if(mode==='local'){authG.seats[c]={t:v};commit()}else api('act',{a:{t:'set',c,v}})}
 async function createRoom(){if(needName())return;audio();const r=await api('create',{});if(r.code)joinRoom(r.code)}
 function joinRoom(raw){
@@ -404,8 +422,9 @@ function joinRoom(raw){
   if(needName())return;audio();
   if(es)es.close();clearTimeout(timer);mode='online';roomCode=code;G=null;authG=null;isHost=false;hideBanner();renderUI();
   try{history.replaceState(null,'','?sala='+code)}catch(e){}
-  es=new EventSource(`/api/stream?code=${code}&id=${encodeURIComponent(myId)}&name=${encodeURIComponent(myName)}`);
+  es=new EventSource(`${API}/api/stream?code=${code}&id=${encodeURIComponent(myId)}&name=${encodeURIComponent(myName)}`);
   es.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}
+    if(m.chat){showChat(m.chat);return}
     if(m.err){toast(m.err);leave();return}
     isHost=m.host;roomInfo=m;onState(m.g)};
   es.onerror=()=>{if(mode==='online')$('status').textContent='Reconectando…'};
@@ -418,6 +437,46 @@ function leave(){
   try{history.replaceState(null,'',location.pathname)}catch(e){}
   disp=fresh();$('menu').style.display='none';renderUI();layoutPieces();reconnectLobbySoon();
 }
+
+/* ================= APLICATIVO ANDROID ================= */
+if(IS_APP){$('fsBtn').classList.add('hidden')}            // o app já abre em tela cheia
+window.appPause=()=>{Music.stop();if(audioCtx)audioCtx.suspend().catch(()=>{})};
+window.appResume=()=>{if(audioCtx)audioCtx.resume().catch(()=>{});if(musicOn&&audioCtx)Music.start()};
+let backAt=0;
+window.appBack=()=>{                                    // botão voltar do Android
+  if(!$('emoPal').classList.contains('hidden')){$('emoPal').classList.add('hidden');return true}
+  if($('menu').style.display==='block'){$('menu').style.display='none';return true}
+  if(ovKey==='rules'){ovKey='';renderUI();return true}
+  if(!mode&&view==='rooms'){view='home';renderUI();return true}
+  if(mode){if(Date.now()-backAt<2000){leave();return true}backAt=Date.now();toast('Toque em voltar de novo para sair da partida');return true}
+  return false};
+
+/* ================= CHAT SÓ DE EMOJIS ================= */
+const EMOJIS=LudoRules.EMOJIS;
+(()=>{const pal=$('emoPal');EMOJIS.forEach((em,i)=>{const b=document.createElement('button');b.textContent=em;
+  b.onclick=e=>{e.stopPropagation();sendEmoji(i);pal.classList.add('hidden')};pal.appendChild(b)})})();
+$('emoBtn').onclick=e=>{e.stopPropagation();$('emoPal').classList.toggle('hidden')};
+document.addEventListener('click',e=>{if(!$('emoPal').contains(e.target))$('emoPal').classList.add('hidden')});
+let lastEmoAt=0;
+function myColor(){if(!G)return null;if(G.mode==='online')return COLORS.find(c=>G.seats[c].me)||null;
+  if(G.seats[G.turn]&&G.seats[G.turn].t==='h')return G.turn;return COLORS.find(c=>G.seats[c].t==='h')||null}
+function sendEmoji(i){const now=Date.now();if(now-lastEmoAt<1200){toast('Calma! Espere um pouco');return}lastEmoAt=now;audio();
+  if(mode==='online')api('act',{a:{t:'emo',e:i}});
+  else{showChat({c:myColor(),e:i});if(Math.random()<.5)botReply(i)}}
+function botReply(i){const bots=COLORS.filter(c=>G&&G.act.includes(c)&&G.seats[c].t==='c');if(!bots.length)return;
+  const ans={0:[0,10],1:[1,0],2:[2,14],3:[3,12],4:[4,8],5:[12,13],6:[12,13],7:[1,2],8:[8,15],9:[9,1],10:[10,12],11:[1,8],12:[12,3],13:[10,13],14:[14,2],15:[15,8],16:[12,7],17:[17,1]}[i]||[0];
+  setTimeout(()=>showChat({c:bots[Math.floor(Math.random()*bots.length)],e:ans[Math.floor(Math.random()*ans.length)]}),900+Math.random()*900)}
+function localBotReact(g){const mv=g.mv;if(!mv)return;const bot=c=>g.seats[c]&&g.seats[c].t==='c';const pk=a=>a[Math.floor(Math.random()*a.length)];
+  if(g.phase==='over'){if(bot(g.winner))setTimeout(()=>showChat({c:g.winner,e:16}),900);return}
+  if(!mv.cap||!mv.cap.length)return;
+  if(bot(mv.c)&&Math.random()<.7)setTimeout(()=>showChat({c:mv.c,e:pk([1,2,14])}),900);
+  const v=mv.cap[0][0];if(bot(v)&&Math.random()<.7)setTimeout(()=>showChat({c:v,e:pk([5,6,7])}),1500)}
+function showChat(m){const em=EMOJIS[m.e];if(!em)return;beep(1200,.06);
+  const d=document.createElement('div');d.className='bub';d.textContent=em;
+  if(m.c&&BC[m.c]){const [y,x]=BC[m.c];d.style.left=((x+.4)/15.8*100)+'%';d.style.top=((y+.4)/15.8*100)+'%'}
+  else{d.style.left='50%';d.style.top='50%'}
+  if(m.name&&G&&G.mode==='online'){const s=document.createElement('small');s.textContent=clean(m.name);d.appendChild(s)}
+  $('board').appendChild(d);setTimeout(()=>d.remove(),2700)}
 
 /* ================= ENTRADAS ================= */
 function onDiceClick(){myAction({t:'roll'})}
@@ -446,7 +505,7 @@ $('mRules').onclick=()=>{const ov=$('ov');ovKey='rules';ov.classList.remove('hid
   $('bOk').onclick=()=>{ovKey='';renderUI()}};
 function copyText(t,msg){try{navigator.clipboard.writeText(t).then(()=>toast(msg),()=>toast(t))}catch(e){toast(t)}}
 function copyCode(){copyText(roomCode,'Código '+roomCode+' copiado')}
-function copyLink(){copyText(location.origin+location.pathname+'?sala='+roomCode,'Link da sala copiado — mande para os amigos')}
+function copyLink(){copyText((API||location.origin+location.pathname.replace(/[^/]*$/,'')).replace(/\/$/,'')+'/?sala='+roomCode,'Link da sala copiado — mande para os amigos')}
 $('sndBtn').onclick=()=>{sound=!sound;$('sndBtn').textContent=sound?'🔊':'🔇';audio()};
 $('fsBtn').onclick=()=>{const d=document,el=d.documentElement;
   if(d.fullscreenElement||d.webkitFullscreenElement){(d.exitFullscreen||d.webkitExitFullscreen).call(d);return}
