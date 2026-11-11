@@ -212,6 +212,10 @@ const server = http.createServer(async (req, res) => {
       const id = cleanId(b.id); const err = handleAct(room, id, clean(b.name) || nameOf(room, id) || 'Jogador', b.a);
       return json(res, err ? 400 : 200, err ? { err } : { ok: true });
     }
+    if (req.method === 'GET' && /^\/(apk|app|baixar|download)\/?$/i.test(u.pathname)) {   // link curto para o APK
+      res.writeHead(302, { Location: 'https://github.com/Rudn31/LUDO-ONLINE/releases/latest/download/LudoOnline.apk', 'Cache-Control': 'no-store' });
+      return res.end();
+    }
     if (req.method === 'GET' && u.pathname === '/health') return json(res, 200, { ok: true, rooms: rooms.size, lobby: lobby.size });
     if (req.method === 'GET' || req.method === 'HEAD') {
       let p = u.pathname === '/' ? '/index.html' : decodeURIComponent(u.pathname);
