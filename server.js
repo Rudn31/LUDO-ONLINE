@@ -151,6 +151,18 @@ function lobbyBroadcast() {
   lobbyT = setTimeout(() => { lobbyT = null; const st = lobbyState(); for (const res of lobby.keys()) send(res, st) }, 200);
 }
 
+/* ---------- APK: baixado da última versão gerada e guardado na memória ---------- */
+const APK_URL = process.env.APK_URL || 'https://github.com/Rudn31/LUDO-ONLINE/releases/latest/download/LudoOnline.apk';
+let apk = { buf: null, at: 0, job: null };
+function getApk() {
+  if (apk.buf && Date.now() - apk.at < 10 * 60 * 1000) return Promise.resolve(apk.buf);
+  if (!apk.job) apk.job = fetch(APK_URL, { redirect: 'follow' })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer() })
+    .then(ab => { const b = Buffer.from(ab); if (b.length < 100000 || b[0] !== 0x50) throw new Error('arquivo inválido'); apk = { buf: b, at: Date.now(), job: null }; return b })
+    .catch(e => { apk.job = null; if (apk.buf) return apk.buf; throw e });   // se falhar, usa o que já tinha
+  return apk.job;
+}
+
 /* ---------- HTTP ---------- */
 const MIME = { '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' };
 function readBody(req) {
@@ -212,9 +224,13 @@ const server = http.createServer(async (req, res) => {
       const id = cleanId(b.id); const err = handleAct(room, id, clean(b.name) || nameOf(room, id) || 'Jogador', b.a);
       return json(res, err ? 400 : 200, err ? { err } : { ok: true });
     }
-    if (req.method === 'GET' && /^\/(apk|app|baixar|download)\/?$/i.test(u.pathname)) {   // link curto para o APK
-      res.writeHead(302, { Location: 'https://github.com/Rudn31/LUDO-ONLINE/releases/latest/download/LudoOnline.apk', 'Cache-Control': 'no-store' });
-      return res.end();
+    if ((req.method === 'GET' || req.method === 'HEAD') && /^\/(apk|app|baixar|download|ludoonline\.apk)\/?$/i.test(u.pathname)) {
+      try {                                        // o próprio servidor entrega o APK (link sem GitHub)
+        const buf = await getApk();
+        res.writeHead(200, { 'Content-Type': 'application/vnd.android.package-archive', 'Content-Length': buf.length,
+          'Content-Disposition': 'attachment; filename="LudoOnline.apk"', 'Cache-Control': 'no-store' });
+        return res.end(req.method === 'HEAD' ? undefined : buf);
+      } catch (e) { res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('APK indisponível agora, tente de novo em 1 minuto.') }
     }
     if (req.method === 'GET' && u.pathname === '/health') return json(res, 200, { ok: true, rooms: rooms.size, lobby: lobby.size });
     if (req.method === 'GET' || req.method === 'HEAD') {

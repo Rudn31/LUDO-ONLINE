@@ -319,7 +319,7 @@ function renderOverlay(){
       <div class="row"><input class="tx" id="codeIn" maxlength="4" placeholder="CÓDIGO" style="text-transform:uppercase;letter-spacing:4px;font-weight:800;flex:1">
       <button class="btn alt" id="bJoin" style="width:auto;padding:0 18px">Entrar</button></div>
       <label class="sm">Jogadores online agora</label><div class="ol" id="olist"></div>
-      ${IS_APP?'':'<a class="btn" id="bApk" href="https://github.com/Rudn31/LUDO-ONLINE/releases/latest/download/LudoOnline.apk" style="background:#3ddc84;color:#0b2a16;text-align:center;text-decoration:none;box-sizing:border-box">📲 Baixar o app para Android</a>'}</div>`;
+      ${IS_APP?'':'<a class="btn" id="bApk" href="apk" style="background:#3ddc84;color:#0b2a16;text-align:center;text-decoration:none;box-sizing:border-box">📲 Baixar o app para Android</a>'}</div>`;
   }else if(key==='rooms'){
     html=`<div class="card"><h2>🔎 Salas online</h2><div id="connSt" class="oli" style="margin-bottom:8px"></div>
       <div class="ol" id="rlist" style="max-height:50vh"></div>
